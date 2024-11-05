@@ -1,56 +1,33 @@
-use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
-use serde::{Deserialize, Serialize};
-use std::env;
-use std::fmt;
+mod config;
+mod error;
+mod handlers;
+mod models;
 
-#[derive(Serialize, Deserialize)]
-struct Message {
-    content: String,
-}
+use actix_web::{App, HttpServer};
+use config::ServerConfig;
+use handlers::{echo, hello};
 
-#[get("/")]
-async fn hello() -> impl Responder {
-    HttpResponse::Ok().body("Hello, World!")
-}
-
-#[post("/echo")]
-async fn echo(message: web::Json<Message>) -> impl Responder {
-    HttpResponse::Ok().json(message.0)
-}
-
-#[derive(Debug)]
-pub enum ServerError {
-    IoError(std::io::Error),
-    EnvError(std::env::VarError),
-    ParseError(std::num::ParseIntError),
-}
-
-impl std::error::Error for ServerError {}
-
-impl fmt::Display for ServerError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ServerError::IoError(e) => write!(f, "IO Error: {}", e),
-            ServerError::EnvError(e) => write!(f, "Environment Error: {}", e),
-            ServerError::ParseError(e) => write!(f, "Parse Error: {}", e),
-        }
-    }
-}
-
+// Main for the HTTP server
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    let port = env::var("PORT").unwrap_or_else(|_| "8088".to_string());
-    let port: u16 = port.parse().unwrap_or(8088);
+    let config = ServerConfig::new()
+        .map_err(|e| {
+            eprintln!("Configuration error: {}", e);
+            eprintln!("Try setting the PORT environment variable: $env:PORT='8088'");
+            std::io::Error::new(std::io::ErrorKind::Other, e.to_string())
+        })?;
+
+    println!("Server starting at http://{}:{}", config.host, config.port);
     
-    let host = "127.0.0.1";
-    println!("Server starting at http://{}:{}", host, port);
+    let host = config.host.clone();
+    let port = config.port;
     
     match HttpServer::new(|| {
         App::new()
             .service(hello)
             .service(echo)
     })
-    .bind((host, port)) {
+    .bind((host.clone(), port)) {
         Ok(server) => {
             server.run().await
         },
