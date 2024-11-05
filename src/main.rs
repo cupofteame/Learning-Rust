@@ -1,6 +1,7 @@
 use actix_web::{get, post, web, App, HttpResponse, HttpServer, Responder};
 use serde::{Deserialize, Serialize};
 use std::env;
+use std::fmt;
 
 #[derive(Serialize, Deserialize)]
 struct Message {
@@ -15,6 +16,25 @@ async fn hello() -> impl Responder {
 #[post("/echo")]
 async fn echo(message: web::Json<Message>) -> impl Responder {
     HttpResponse::Ok().json(message.0)
+}
+
+#[derive(Debug)]
+pub enum ServerError {
+    IoError(std::io::Error),
+    EnvError(std::env::VarError),
+    ParseError(std::num::ParseIntError),
+}
+
+impl std::error::Error for ServerError {}
+
+impl fmt::Display for ServerError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            ServerError::IoError(e) => write!(f, "IO Error: {}", e),
+            ServerError::EnvError(e) => write!(f, "Environment Error: {}", e),
+            ServerError::ParseError(e) => write!(f, "Parse Error: {}", e),
+        }
+    }
 }
 
 #[actix_web::main]
